@@ -37,7 +37,8 @@ fn full_access_restricted_policy_skips_platform_sandbox_when_network_is_enabled(
         should_require_platform_sandbox(
             &policy,
             NetworkSandboxPolicy::Enabled,
-            /*has_managed_network_requirements*/ false
+            /*has_managed_network_requirements*/ false,
+            /*has_hardware_requirements*/ false,
         ),
         false
     );
@@ -66,7 +67,8 @@ fn root_write_policy_with_carveouts_still_uses_platform_sandbox() {
         should_require_platform_sandbox(
             &policy,
             NetworkSandboxPolicy::Enabled,
-            /*has_managed_network_requirements*/ false
+            /*has_managed_network_requirements*/ false,
+            /*has_hardware_requirements*/ false,
         ),
         true
     );
@@ -85,7 +87,8 @@ fn full_access_restricted_policy_still_uses_platform_sandbox_for_restricted_netw
         should_require_platform_sandbox(
             &policy,
             NetworkSandboxPolicy::Restricted,
-            /*has_managed_network_requirements*/ false
+            /*has_managed_network_requirements*/ false,
+            /*has_hardware_requirements*/ false,
         ),
         true
     );

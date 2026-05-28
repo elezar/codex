@@ -256,6 +256,7 @@ async fn session_configured_syncs_widget_config_permissions_and_cwd() {
             ],
             glob_scan_max_depth: None,
         },
+        hardware: Default::default(),
     };
     let expected_permission_profile = expected_app_server_permission_profile.clone();
     let expected_core_sandbox = expected_permission_profile

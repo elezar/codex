@@ -268,6 +268,7 @@ fn managed_proxy_preflight_argv_is_wrapped_for_full_access_policy() {
         Path::new("/"),
         &FileSystemSandboxPolicy::unrestricted(),
         mode,
+        &[],
     )
     .expect("build preflight argv")
     .args;

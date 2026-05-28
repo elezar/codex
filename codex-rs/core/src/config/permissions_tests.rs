@@ -4,6 +4,7 @@ use crate::config::ConfigOverrides;
 use codex_config::config_toml::ConfigToml;
 use codex_config::permissions_toml::FilesystemPermissionToml;
 use codex_config::permissions_toml::FilesystemPermissionsToml;
+use codex_config::permissions_toml::HardwarePermissionsToml;
 use codex_config::permissions_toml::NetworkDomainPermissionToml;
 use codex_config::permissions_toml::NetworkDomainPermissionsToml;
 use codex_config::permissions_toml::NetworkToml;
@@ -75,6 +76,7 @@ async fn restricted_read_implicitly_allows_helper_executables() -> std::io::Resu
                             entries: BTreeMap::new(),
                         }),
                         network: None,
+                        hardware: None,
                     },
                 )]),
             }),
@@ -448,6 +450,7 @@ fn compile_permission_profile_workspace_roots_resolves_enabled_entries() -> std:
                     }),
                     filesystem: None,
                     network: None,
+                    hardware: None,
                 },
             )]),
         }),
@@ -544,7 +547,7 @@ fn glob_scan_max_depth_must_be_positive() {
 fn read_write_trailing_glob_suffix_compiles_as_subpath() -> std::io::Result<()> {
     let cwd = TempDir::new()?;
     let mut startup_warnings = Vec::new();
-    let (file_system_policy, _) = compile_permission_profile(
+    let (file_system_policy, _, _) = compile_permission_profile(
         &PermissionsToml {
             entries: BTreeMap::from([(
                 "workspace".to_string(),
@@ -563,6 +566,7 @@ fn read_write_trailing_glob_suffix_compiles_as_subpath() -> std::io::Result<()> 
                         )]),
                     }),
                     network: None,
+                    hardware: None,
                 },
             )]),
         },
@@ -580,6 +584,48 @@ fn read_write_trailing_glob_suffix_compiles_as_subpath() -> std::io::Result<()> 
             access: FileSystemAccessMode::Read,
         }]),
         "trailing /** should compile as a subtree path instead of a glob pattern"
+    );
+    Ok(())
+}
+
+#[test]
+fn compile_permission_profile_compiles_hardware_cdi_devices() -> std::io::Result<()> {
+    let cwd = TempDir::new()?;
+    let mut startup_warnings = Vec::new();
+    let (_, _, hardware_permissions) = compile_permission_profile(
+        &PermissionsToml {
+            entries: BTreeMap::from([(
+                "workspace".to_string(),
+                PermissionProfileToml {
+                    description: None,
+                    extends: None,
+                    workspace_roots: None,
+                    filesystem: Some(FilesystemPermissionsToml {
+                        glob_scan_max_depth: None,
+                        entries: BTreeMap::new(),
+                    }),
+                    network: None,
+                    hardware: Some(HardwarePermissionsToml {
+                        cdi_devices: Some(vec![
+                            "vendor.com/gpu=0".to_string(),
+                            "vendor.com/gpu=0".to_string(),
+                            "vendor.com/gpu=1".to_string(),
+                        ]),
+                    }),
+                },
+            )]),
+        },
+        "workspace",
+        cwd.path(),
+        &mut startup_warnings,
+    )?;
+
+    assert_eq!(
+        hardware_permissions.cdi_devices,
+        vec![
+            "vendor.com/gpu=0".to_string(),
+            "vendor.com/gpu=1".to_string()
+        ]
     );
     Ok(())
 }

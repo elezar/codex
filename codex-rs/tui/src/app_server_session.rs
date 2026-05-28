@@ -2049,6 +2049,7 @@ mod tests {
                 ],
                 glob_scan_max_depth: None,
             },
+            hardware: Default::default(),
         };
 
         assert_eq!(
@@ -2079,6 +2080,7 @@ mod tests {
                 ],
                 glob_scan_max_depth: None,
             },
+            hardware: Default::default(),
         };
 
         assert_eq!(
