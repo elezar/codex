@@ -229,6 +229,10 @@ impl ToolOrchestrator {
                 tool.sandbox_preference(),
                 turn_ctx.windows_sandbox_level,
                 managed_network_active,
+                !turn_ctx
+                    .permission_profile
+                    .hardware_permissions()
+                    .is_empty(),
             ),
         };
 

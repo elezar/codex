@@ -310,6 +310,7 @@ mod tests {
                 ],
                 glob_scan_max_depth: None,
             },
+            hardware: Default::default(),
         };
         let session = ThreadSessionState {
             permission_profile: profile.clone(),

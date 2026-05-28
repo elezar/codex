@@ -75,6 +75,7 @@ mod tests {
                 ],
                 glob_scan_max_depth: None,
             },
+            hardware: Default::default(),
         };
 
         let compatibility_profile =

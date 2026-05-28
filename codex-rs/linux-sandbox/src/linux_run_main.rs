@@ -19,7 +19,9 @@ use std::time::Duration;
 
 use crate::bwrap::BwrapNetworkMode;
 use crate::bwrap::BwrapOptions;
+use crate::bwrap::DeviceBind;
 use crate::bwrap::create_bwrap_command_args;
+use crate::cdi::resolve_default_cdi_device_binds;
 use crate::landlock::apply_permission_profile_to_current_thread;
 use crate::launcher::exec_bwrap;
 use crate::launcher::preferred_bwrap_supports_argv0;
@@ -172,6 +174,7 @@ pub fn run_main() -> ! {
         network_sandbox_policy,
         &sandbox_policy_cwd,
     );
+    let hardware_permissions = permission_profile.hardware_permissions();
 
     // Inner stage: apply seccomp/no_new_privs after bubblewrap has already
     // established the filesystem view.
@@ -197,7 +200,10 @@ pub fn run_main() -> ! {
         exec_or_panic(command);
     }
 
-    if file_system_sandbox_policy.has_full_disk_write_access() && !allow_network_for_proxy {
+    if file_system_sandbox_policy.has_full_disk_write_access()
+        && !allow_network_for_proxy
+        && hardware_permissions.is_empty()
+    {
         if let Err(e) = apply_permission_profile_to_current_thread(
             &permission_profile,
             &sandbox_policy_cwd,
@@ -238,6 +244,7 @@ pub fn run_main() -> ! {
             inner,
             !no_proc,
             allow_network_for_proxy,
+            &hardware_permissions.cdi_devices,
         );
     }
 
@@ -322,10 +329,15 @@ fn run_bwrap_with_proc_fallback(
     inner: Vec<String>,
     mount_proc: bool,
     allow_network_for_proxy: bool,
+    cdi_devices: &[String],
 ) -> ! {
     let network_mode = bwrap_network_mode(network_sandbox_policy, allow_network_for_proxy);
     let mut mount_proc = mount_proc;
     let command_cwd = command_cwd.unwrap_or(sandbox_policy_cwd);
+    let device_binds = resolve_default_cdi_device_binds(cdi_devices).unwrap_or_else(|err| {
+        eprintln!("error resolving CDI devices: {err}");
+        std::process::exit(1);
+    });
 
     if mount_proc
         && !preflight_proc_mount_support(
@@ -333,6 +345,7 @@ fn run_bwrap_with_proc_fallback(
             command_cwd,
             file_system_sandbox_policy,
             network_mode,
+            &device_binds,
         )
         .unwrap_or_else(|err| exit_with_bwrap_build_error(err))
     {
@@ -344,6 +357,7 @@ fn run_bwrap_with_proc_fallback(
     let options = BwrapOptions {
         mount_proc,
         network_mode,
+        device_binds,
         ..Default::default()
     };
     let mut bwrap_args = build_bwrap_argv(
@@ -446,12 +460,14 @@ fn preflight_proc_mount_support(
     command_cwd: &Path,
     file_system_sandbox_policy: &FileSystemSandboxPolicy,
     network_mode: BwrapNetworkMode,
+    device_binds: &[DeviceBind],
 ) -> CodexResult<bool> {
     let preflight_argv = build_preflight_bwrap_argv(
         sandbox_policy_cwd,
         command_cwd,
         file_system_sandbox_policy,
         network_mode,
+        device_binds,
     )?;
     let stderr = run_bwrap_in_child_capture_stderr(preflight_argv);
     Ok(!is_proc_mount_failure(stderr.as_str()))
@@ -462,6 +478,7 @@ fn build_preflight_bwrap_argv(
     command_cwd: &Path,
     file_system_sandbox_policy: &FileSystemSandboxPolicy,
     network_mode: BwrapNetworkMode,
+    device_binds: &[DeviceBind],
 ) -> CodexResult<crate::bwrap::BwrapArgs> {
     let preflight_command = vec![resolve_true_command()];
     build_bwrap_argv(
@@ -472,6 +489,7 @@ fn build_preflight_bwrap_argv(
         BwrapOptions {
             mount_proc: true,
             network_mode,
+            device_binds: device_binds.to_vec(),
             ..Default::default()
         },
     )

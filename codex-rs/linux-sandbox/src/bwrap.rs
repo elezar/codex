@@ -56,7 +56,7 @@ const LINUX_PLATFORM_DEFAULT_READ_ROOTS: &[&str] = &[
 const MAX_UNREADABLE_GLOB_MATCHES: usize = 8192;
 
 /// Options that control how bubblewrap is invoked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BwrapOptions {
     /// Whether to mount a fresh `/proc` inside the sandbox.
     ///
@@ -70,6 +70,8 @@ pub(crate) struct BwrapOptions {
     /// Keep this uncapped by default so existing nested deny-read matches are
     /// masked before the sandboxed command starts.
     pub glob_scan_max_depth: Option<usize>,
+    /// Strict device-node binds resolved from CDI device grants.
+    pub device_binds: Vec<DeviceBind>,
 }
 
 impl Default for BwrapOptions {
@@ -78,6 +80,7 @@ impl Default for BwrapOptions {
             mount_proc: true,
             network_mode: BwrapNetworkMode::FullAccess,
             glob_scan_max_depth: None,
+            device_binds: Vec::new(),
         }
     }
 }
@@ -101,6 +104,12 @@ impl BwrapNetworkMode {
     fn should_unshare_network(self) -> bool {
         !matches!(self, Self::FullAccess)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct DeviceBind {
+    pub source: PathBuf,
+    pub destination: PathBuf,
 }
 
 #[derive(Debug)]
@@ -244,12 +253,16 @@ pub(crate) fn create_bwrap_command_args(
     // need concrete bwrap masks for the matches expanded below.
     if file_system_sandbox_policy.has_full_disk_write_access() && unreadable_globs.is_empty() {
         return if options.network_mode == BwrapNetworkMode::FullAccess {
-            Ok(BwrapArgs {
-                args: command,
-                preserved_files: Vec::new(),
-                synthetic_mount_targets: Vec::new(),
-                protected_create_targets: Vec::new(),
-            })
+            if options.device_binds.is_empty() {
+                Ok(BwrapArgs {
+                    args: command,
+                    preserved_files: Vec::new(),
+                    synthetic_mount_targets: Vec::new(),
+                    protected_create_targets: Vec::new(),
+                })
+            } else {
+                Ok(create_bwrap_flags_full_filesystem(command, options))
+            }
         } else {
             Ok(create_bwrap_flags_full_filesystem(command, options))
         };
@@ -271,11 +284,12 @@ fn create_bwrap_flags_full_filesystem(command: Vec<String>, options: BwrapOption
         "--bind".to_string(),
         "/".to_string(),
         "/".to_string(),
-        // Always enter a fresh user namespace so root inside a container does
-        // not need ambient CAP_SYS_ADMIN to create the remaining namespaces.
-        "--unshare-user".to_string(),
-        "--unshare-pid".to_string(),
     ];
+    append_device_bind_args(&mut args, &options.device_binds);
+    // Always enter a fresh user namespace so root inside a container does
+    // not need ambient CAP_SYS_ADMIN to create the remaining namespaces.
+    args.push("--unshare-user".to_string());
+    args.push("--unshare-pid".to_string());
     if options.network_mode.should_unshare_network() {
         args.push("--unshare-net".to_string());
     }
@@ -318,6 +332,7 @@ fn create_bwrap_flags(
     args.push("--new-session".to_string());
     args.push("--die-with-parent".to_string());
     args.extend(filesystem_args);
+    append_device_bind_args(&mut args, &options.device_binds);
     // Request a user namespace explicitly rather than relying on bubblewrap's
     // auto-enable behavior, which is skipped when the caller runs as uid 0.
     args.push("--unshare-user".to_string());
@@ -346,6 +361,14 @@ fn create_bwrap_flags(
         synthetic_mount_targets,
         protected_create_targets,
     })
+}
+
+fn append_device_bind_args(args: &mut Vec<String>, device_binds: &[DeviceBind]) {
+    for device_bind in device_binds {
+        args.push("--dev-bind".to_string());
+        args.push(path_to_string(&device_bind.source));
+        args.push(path_to_string(&device_bind.destination));
+    }
 }
 
 /// Build the bubblewrap filesystem mounts for a given filesystem policy.
@@ -1374,6 +1397,73 @@ mod tests {
         .expect("create bwrap args");
 
         assert_eq!(args.args, command);
+    }
+
+    #[test]
+    fn full_disk_write_with_device_binds_still_wraps_command() {
+        let command = vec!["/bin/true".to_string()];
+        let args = create_bwrap_command_args(
+            command,
+            &FileSystemSandboxPolicy::unrestricted(),
+            Path::new("/"),
+            Path::new("/"),
+            BwrapOptions {
+                mount_proc: true,
+                network_mode: BwrapNetworkMode::FullAccess,
+                device_binds: vec![DeviceBind {
+                    source: PathBuf::from("/dev/nvidia0"),
+                    destination: PathBuf::from("/dev/nvidia0"),
+                }],
+                ..Default::default()
+            },
+        )
+        .expect("create bwrap args");
+
+        assert_eq!(
+            args.args,
+            vec![
+                "--new-session".to_string(),
+                "--die-with-parent".to_string(),
+                "--bind".to_string(),
+                "/".to_string(),
+                "/".to_string(),
+                "--dev-bind".to_string(),
+                "/dev/nvidia0".to_string(),
+                "/dev/nvidia0".to_string(),
+                "--unshare-user".to_string(),
+                "--unshare-pid".to_string(),
+                "--proc".to_string(),
+                "/proc".to_string(),
+                "--".to_string(),
+                "/bin/true".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn restricted_policy_uses_strict_device_binds() {
+        let args = create_bwrap_command_args(
+            vec!["/bin/true".to_string()],
+            &FileSystemSandboxPolicy::default(),
+            Path::new("/"),
+            Path::new("/"),
+            BwrapOptions {
+                device_binds: vec![DeviceBind {
+                    source: PathBuf::from("/dev/dri/renderD128"),
+                    destination: PathBuf::from("/dev/dri/renderD128"),
+                }],
+                ..Default::default()
+            },
+        )
+        .expect("create bwrap args");
+
+        assert!(args.args.windows(3).any(|window| {
+            window == ["--dev-bind", "/dev/dri/renderD128", "/dev/dri/renderD128"]
+        }));
+        assert!(
+            !args.args.iter().any(|arg| arg == "--dev-bind-try"),
+            "CDI device binds must be required"
+        );
     }
 
     #[test]

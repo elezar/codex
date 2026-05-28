@@ -1004,6 +1004,24 @@ fn process_exec_tool_call_uses_platform_sandbox_for_network_only_restrictions() 
             NetworkSandboxPolicy::Restricted,
             codex_protocol::config_types::WindowsSandboxLevel::Disabled,
             /*enforce_managed_network*/ false,
+            /*has_hardware_requirements*/ false,
+        ),
+        expected
+    );
+}
+
+#[test]
+fn process_exec_tool_call_uses_platform_sandbox_for_hardware_requirements() {
+    let expected = codex_sandboxing::get_platform_sandbox(/*windows_sandbox_enabled*/ false)
+        .unwrap_or(SandboxType::None);
+
+    assert_eq!(
+        select_process_exec_tool_sandbox_type(
+            &FileSystemSandboxPolicy::unrestricted(),
+            NetworkSandboxPolicy::Enabled,
+            codex_protocol::config_types::WindowsSandboxLevel::Disabled,
+            /*enforce_managed_network*/ false,
+            /*has_hardware_requirements*/ true,
         ),
         expected
     );

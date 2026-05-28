@@ -138,6 +138,7 @@ fn select_process_exec_tool_sandbox_type(
     network_sandbox_policy: NetworkSandboxPolicy,
     windows_sandbox_level: codex_protocol::config_types::WindowsSandboxLevel,
     enforce_managed_network: bool,
+    has_hardware_requirements: bool,
 ) -> SandboxType {
     SandboxManager::new().select_initial(
         file_system_sandbox_policy,
@@ -145,6 +146,7 @@ fn select_process_exec_tool_sandbox_type(
         SandboxablePreference::Auto,
         windows_sandbox_level,
         enforce_managed_network,
+        has_hardware_requirements,
     )
 }
 
@@ -346,6 +348,7 @@ pub fn build_exec_request(
         network_sandbox_policy,
         windows_sandbox_level,
         enforce_managed_network,
+        !permission_profile.hardware_permissions().is_empty(),
     );
     tracing::debug!("Sandbox type: {sandbox_type:?}");
 

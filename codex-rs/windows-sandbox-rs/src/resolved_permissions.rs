@@ -292,6 +292,7 @@ mod tests {
                 glob_scan_max_depth: None,
             },
             network: NetworkSandboxPolicy::Restricted,
+            hardware: Default::default(),
         };
         let permissions = ResolvedWindowsSandboxPermissions::try_from_permission_profile_for_cwd(
             &permission_profile,
@@ -361,6 +362,7 @@ mod tests {
         let permission_profile = PermissionProfile::Managed {
             file_system: ManagedFileSystemPermissions::Unrestricted,
             network: NetworkSandboxPolicy::Restricted,
+            hardware: Default::default(),
         };
 
         let err =
@@ -389,6 +391,7 @@ mod tests {
                 glob_scan_max_depth: None,
             },
             network: NetworkSandboxPolicy::Restricted,
+            hardware: Default::default(),
         };
 
         let err = token_mode_for_permission_profile(&permission_profile, &cwd, &HashMap::new())

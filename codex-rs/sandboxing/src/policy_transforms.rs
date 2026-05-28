@@ -504,14 +504,16 @@ pub fn effective_permission_profile(
         &effective_file_system_policy,
         effective_network_policy,
     )
+    .with_hardware_permissions(permission_profile.hardware_permissions())
 }
 
 pub fn should_require_platform_sandbox(
     file_system_policy: &FileSystemSandboxPolicy,
     network_policy: NetworkSandboxPolicy,
     has_managed_network_requirements: bool,
+    has_hardware_requirements: bool,
 ) -> bool {
-    if has_managed_network_requirements {
+    if has_managed_network_requirements || has_hardware_requirements {
         return true;
     }
 

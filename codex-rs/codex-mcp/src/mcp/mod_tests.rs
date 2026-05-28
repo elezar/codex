@@ -50,6 +50,7 @@ fn mcp_prompt_auto_approval_honors_unrestricted_managed_profiles() {
         &PermissionProfile::Managed {
             file_system: ManagedFileSystemPermissions::Unrestricted,
             network: NetworkSandboxPolicy::Enabled,
+            hardware: Default::default(),
         },
         McpPermissionPromptAutoApproveContext::default(),
     ));
@@ -58,6 +59,7 @@ fn mcp_prompt_auto_approval_honors_unrestricted_managed_profiles() {
         &PermissionProfile::Managed {
             file_system: ManagedFileSystemPermissions::Unrestricted,
             network: NetworkSandboxPolicy::Restricted,
+            hardware: Default::default(),
         },
         McpPermissionPromptAutoApproveContext::default(),
     ));
@@ -71,6 +73,7 @@ fn mcp_prompt_auto_approval_honors_unrestricted_managed_profiles() {
         &PermissionProfile::Managed {
             file_system: ManagedFileSystemPermissions::Unrestricted,
             network: NetworkSandboxPolicy::Enabled,
+            hardware: Default::default(),
         },
         McpPermissionPromptAutoApproveContext::default(),
     ));

@@ -52,6 +52,7 @@ fn should_warn_about_system_bwrap(permission_profile: &PermissionProfile) -> boo
         &file_system_policy,
         network_policy,
         /*has_managed_network_requirements*/ false,
+        !permission_profile.hardware_permissions().is_empty(),
     )
 }
 

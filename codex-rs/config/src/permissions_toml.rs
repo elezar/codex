@@ -112,6 +112,13 @@ pub struct PermissionProfileToml {
     pub workspace_roots: Option<WorkspaceRootsToml>,
     pub filesystem: Option<FilesystemPermissionsToml>,
     pub network: Option<NetworkToml>,
+    pub hardware: Option<HardwarePermissionsToml>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct HardwarePermissionsToml {
+    pub cdi_devices: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

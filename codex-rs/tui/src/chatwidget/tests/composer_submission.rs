@@ -119,6 +119,7 @@ async fn submission_includes_configured_active_permission_profile() {
             ],
             glob_scan_max_depth: None,
         },
+        hardware: Default::default(),
     };
     let expected_active_permission_profile = ActivePermissionProfile::new("custom");
     let configured = crate::session_state::ThreadSessionState {
@@ -175,6 +176,7 @@ async fn submission_omits_active_permission_profile_for_legacy_snapshot() {
     let expected_permission_profile: PermissionProfile = PermissionProfile::Managed {
         network: NetworkSandboxPolicy::Restricted,
         file_system: ManagedFileSystemPermissions::Unrestricted,
+        hardware: Default::default(),
     };
     let configured = crate::session_state::ThreadSessionState {
         thread_id,

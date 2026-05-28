@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use codex_config::permissions_toml::FilesystemPermissionToml;
 use codex_config::permissions_toml::FilesystemPermissionsToml;
+use codex_config::permissions_toml::HardwarePermissionsToml;
 use codex_config::permissions_toml::NetworkDomainPermissionToml;
 use codex_config::permissions_toml::NetworkDomainPermissionsToml;
 use codex_config::permissions_toml::NetworkToml;
@@ -28,6 +29,7 @@ use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_READ_ONLY;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_WORKSPACE;
+use codex_protocol::models::HardwarePermissions;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::permissions::FileSystemAccessMode;
 use codex_protocol::permissions::FileSystemPath;
@@ -214,6 +216,7 @@ fn extensible_builtin_parent_profile_marker(profile_name: &str) -> Option<Permis
         workspace_roots: None,
         filesystem: None,
         network: None,
+        hardware: None,
     })
 }
 
@@ -243,7 +246,11 @@ pub(crate) fn compile_permission_profile(
     profile_name: &str,
     policy_cwd: &Path,
     startup_warnings: &mut Vec<String>,
-) -> io::Result<(FileSystemSandboxPolicy, NetworkSandboxPolicy)> {
+) -> io::Result<(
+    FileSystemSandboxPolicy,
+    NetworkSandboxPolicy,
+    HardwarePermissions,
+)> {
     let ResolvedPermissionProfileToml {
         profile,
         inherited_profile_names,
@@ -254,13 +261,23 @@ pub(crate) fn compile_permission_profile(
             BUILT_IN_WORKSPACE_PROFILE => Some(PermissionProfile::workspace_write()),
             _ => None,
         }
-        .map(|profile| profile.to_runtime_permissions())
+        .map(|profile| {
+            let hardware_permissions = profile.hardware_permissions();
+            let (file_system_sandbox_policy, network_sandbox_policy) =
+                profile.to_runtime_permissions();
+            (
+                file_system_sandbox_policy,
+                network_sandbox_policy,
+                hardware_permissions,
+            )
+        })
     });
-    let (mut file_system_sandbox_policy, base_network_sandbox_policy) = base_permissions
-        .unwrap_or_else(|| {
+    let (mut file_system_sandbox_policy, base_network_sandbox_policy, base_hardware_permissions) =
+        base_permissions.unwrap_or_else(|| {
             (
                 FileSystemSandboxPolicy::restricted(Vec::new()),
                 NetworkSandboxPolicy::Restricted,
+                HardwarePermissions::default(),
             )
         });
     if let Some(filesystem) = profile.filesystem.as_ref() {
@@ -316,7 +333,13 @@ pub(crate) fn compile_permission_profile(
     }
     let network_sandbox_policy =
         compile_network_sandbox_policy(profile.network.as_ref(), base_network_sandbox_policy);
-    Ok((file_system_sandbox_policy, network_sandbox_policy))
+    let hardware_permissions =
+        compile_hardware_permissions(profile.hardware.as_ref(), base_hardware_permissions);
+    Ok((
+        file_system_sandbox_policy,
+        network_sandbox_policy,
+        hardware_permissions,
+    ))
 }
 
 pub(crate) fn compile_permission_profile_selection(
@@ -325,9 +348,20 @@ pub(crate) fn compile_permission_profile_selection(
     workspace_write: Option<&SandboxWorkspaceWrite>,
     policy_cwd: &Path,
     startup_warnings: &mut Vec<String>,
-) -> io::Result<(FileSystemSandboxPolicy, NetworkSandboxPolicy)> {
+) -> io::Result<(
+    FileSystemSandboxPolicy,
+    NetworkSandboxPolicy,
+    HardwarePermissions,
+)> {
     if let Some(permission_profile) = builtin_permission_profile(profile_name, workspace_write) {
-        return Ok(permission_profile.to_runtime_permissions());
+        let hardware_permissions = permission_profile.hardware_permissions();
+        let (file_system_sandbox_policy, network_sandbox_policy) =
+            permission_profile.to_runtime_permissions();
+        return Ok((
+            file_system_sandbox_policy,
+            network_sandbox_policy,
+            hardware_permissions,
+        ));
     }
     reject_unknown_builtin_permission_profile(profile_name)?;
 
@@ -430,6 +464,26 @@ fn compile_network_sandbox_policy(
         Some(false) => NetworkSandboxPolicy::Restricted,
         None => base_network_sandbox_policy,
     }
+}
+
+fn compile_hardware_permissions(
+    hardware: Option<&HardwarePermissionsToml>,
+    mut base_hardware_permissions: HardwarePermissions,
+) -> HardwarePermissions {
+    let Some(hardware) = hardware else {
+        return base_hardware_permissions;
+    };
+
+    if let Some(cdi_devices) = hardware.cdi_devices.as_ref() {
+        let mut deduped = Vec::new();
+        for device in cdi_devices {
+            if !deduped.iter().any(|existing| existing == device) {
+                deduped.push(device.clone());
+            }
+        }
+        base_hardware_permissions.cdi_devices = deduped;
+    }
+    base_hardware_permissions
 }
 
 fn compile_filesystem_permission(

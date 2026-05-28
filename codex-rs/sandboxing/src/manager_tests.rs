@@ -30,6 +30,7 @@ fn danger_full_access_defaults_to_no_sandbox_without_network_requirements() {
         SandboxablePreference::Auto,
         WindowsSandboxLevel::Disabled,
         /*has_managed_network_requirements*/ false,
+        /*has_hardware_requirements*/ false,
     );
     assert_eq!(sandbox, SandboxType::None);
 }
@@ -45,6 +46,7 @@ fn danger_full_access_uses_platform_sandbox_with_network_requirements() {
         SandboxablePreference::Auto,
         WindowsSandboxLevel::Disabled,
         /*has_managed_network_requirements*/ true,
+        /*has_hardware_requirements*/ false,
     );
     assert_eq!(sandbox, expected);
 }
@@ -65,6 +67,7 @@ fn restricted_file_system_uses_platform_sandbox_without_managed_network() {
         SandboxablePreference::Auto,
         WindowsSandboxLevel::Disabled,
         /*has_managed_network_requirements*/ false,
+        /*has_hardware_requirements*/ false,
     );
     assert_eq!(sandbox, expected);
 }
@@ -286,6 +289,7 @@ fn wsl1_rejects_linux_bubblewrap_path() {
             &restricted_policy,
             /*use_legacy_landlock*/ false,
             /*allow_network_for_proxy*/ false,
+            /*has_hardware_requirements*/ false,
             /*is_wsl1*/ true,
         ),
         Err(super::SandboxTransformError::Wsl1UnsupportedForBubblewrap)
@@ -295,6 +299,17 @@ fn wsl1_rejects_linux_bubblewrap_path() {
             &FileSystemSandboxPolicy::unrestricted(),
             /*use_legacy_landlock*/ false,
             /*allow_network_for_proxy*/ true,
+            /*has_hardware_requirements*/ false,
+            /*is_wsl1*/ true,
+        ),
+        Err(super::SandboxTransformError::Wsl1UnsupportedForBubblewrap)
+    ));
+    assert!(matches!(
+        super::ensure_linux_bubblewrap_is_supported(
+            &FileSystemSandboxPolicy::unrestricted(),
+            /*use_legacy_landlock*/ false,
+            /*allow_network_for_proxy*/ false,
+            /*has_hardware_requirements*/ true,
             /*is_wsl1*/ true,
         ),
         Err(super::SandboxTransformError::Wsl1UnsupportedForBubblewrap)
@@ -309,6 +324,7 @@ fn wsl1_allows_non_bubblewrap_linux_paths() {
             &FileSystemSandboxPolicy::unrestricted(),
             /*use_legacy_landlock*/ false,
             /*allow_network_for_proxy*/ false,
+            /*has_hardware_requirements*/ false,
             /*is_wsl1*/ true,
         )
         .is_ok()
@@ -325,6 +341,7 @@ fn wsl1_allows_non_bubblewrap_linux_paths() {
             &restricted_policy,
             /*use_legacy_landlock*/ true,
             /*allow_network_for_proxy*/ false,
+            /*has_hardware_requirements*/ false,
             /*is_wsl1*/ true,
         )
         .is_ok()
