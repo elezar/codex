@@ -143,6 +143,7 @@ impl SandboxManager {
         pref: SandboxablePreference,
         windows_sandbox_level: WindowsSandboxLevel,
         has_managed_network_requirements: bool,
+        has_hardware_requirements: bool,
     ) -> SandboxType {
         match pref {
             SandboxablePreference::Forbid => SandboxType::None,
@@ -155,6 +156,7 @@ impl SandboxManager {
                     file_system_policy,
                     network_policy,
                     has_managed_network_requirements,
+                    has_hardware_requirements,
                 ) {
                     get_platform_sandbox(windows_sandbox_level != WindowsSandboxLevel::Disabled)
                         .unwrap_or(SandboxType::None)
@@ -223,6 +225,9 @@ impl SandboxManager {
                     &effective_file_system_policy,
                     use_legacy_landlock,
                     allow_proxy_network,
+                    !effective_permission_profile
+                        .hardware_permissions()
+                        .is_empty(),
                     is_wsl1(),
                 )?;
                 let mut args = create_linux_sandbox_command_args_for_permission_profile(
@@ -309,10 +314,13 @@ fn ensure_linux_bubblewrap_is_supported(
     file_system_sandbox_policy: &FileSystemSandboxPolicy,
     use_legacy_landlock: bool,
     allow_network_for_proxy: bool,
+    has_hardware_requirements: bool,
     is_wsl1: bool,
 ) -> Result<(), SandboxTransformError> {
     let requires_bubblewrap = !use_legacy_landlock
-        && (!file_system_sandbox_policy.has_full_disk_write_access() || allow_network_for_proxy);
+        && (!file_system_sandbox_policy.has_full_disk_write_access()
+            || allow_network_for_proxy
+            || has_hardware_requirements);
     if is_wsl1 && requires_bubblewrap {
         return Err(SandboxTransformError::Wsl1UnsupportedForBubblewrap);
     }

@@ -391,7 +391,8 @@ impl SessionConfiguration {
                 enforcement,
                 &file_system_sandbox_policy,
                 network_sandbox_policy,
-            );
+            )
+            .with_hardware_permissions(permission_profile.hardware_permissions());
 
         let permission_snapshot = match active_permission_profile {
             Some(active_permission_profile) => {

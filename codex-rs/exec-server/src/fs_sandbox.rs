@@ -93,6 +93,7 @@ impl FileSystemSandboxRunner {
             SandboxablePreference::Auto,
             sandbox_context.windows_sandbox_level,
             /*has_managed_network_requirements*/ false,
+            !permission_profile.hardware_permissions().is_empty(),
         );
         let command = SandboxCommand {
             program: helper.as_path().as_os_str().to_owned(),

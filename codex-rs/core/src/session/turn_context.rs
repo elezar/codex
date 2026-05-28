@@ -286,7 +286,8 @@ impl TurnContext {
             self.permission_profile.enforcement(),
             &file_system_sandbox_policy,
             network_sandbox_policy,
-        );
+        )
+        .with_hardware_permissions(self.permission_profile.hardware_permissions());
         FileSystemSandboxContext {
             permissions,
             cwd: Some(cwd.clone()),

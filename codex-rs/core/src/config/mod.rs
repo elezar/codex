@@ -497,6 +497,30 @@ fn profile_allows_configured_network_proxy(permission_profile: &PermissionProfil
     }
 }
 
+fn maybe_warn_unsupported_hardware_permissions(
+    permission_profile: &PermissionProfile,
+    features: &ManagedFeatures,
+    startup_warnings: &mut Vec<String>,
+) {
+    if permission_profile.hardware_permissions().is_empty() {
+        return;
+    }
+
+    if cfg!(target_os = "linux") {
+        if features.get().use_legacy_landlock() {
+            startup_warnings.push(
+                "CDI device grants are only applied by the Linux bubblewrap sandbox; legacy Landlock will run without CDI devices."
+                    .to_string(),
+            );
+        }
+    } else {
+        startup_warnings.push(
+            "CDI device grants are only applied by the Linux bubblewrap sandbox; this platform will run without CDI devices."
+                .to_string(),
+        );
+    }
+}
+
 fn build_network_proxy_spec(
     configured_network_proxy_config: NetworkProxyConfig,
     network_requirements: Option<Sourced<codex_config::NetworkConstraints>>,
@@ -2716,7 +2740,8 @@ impl Config {
                     permission_profile.enforcement(),
                     &materialized_file_system_sandbox_policy,
                     network_sandbox_policy,
-                );
+                )
+                .with_hardware_permissions(permission_profile.hardware_permissions());
             let sandbox_policy = compatibility_sandbox_policy_for_permission_profile(
                 &materialized_permission_profile,
                 &materialized_file_system_sandbox_policy,
@@ -2730,7 +2755,8 @@ impl Config {
                     permission_profile.enforcement(),
                     &file_system_sandbox_policy,
                     network_sandbox_policy,
-                );
+                )
+                .with_hardware_permissions(permission_profile.hardware_permissions());
             }
             (
                 configured_network_proxy_config,
@@ -2754,7 +2780,11 @@ impl Config {
                 effective_permission_selection.profiles.as_ref(),
                 default_permissions,
             )?;
-            let (mut file_system_sandbox_policy, network_sandbox_policy) =
+            let (
+                mut file_system_sandbox_policy,
+                network_sandbox_policy,
+                hardware_permissions,
+            ) =
                 compile_permission_profile_selection(
                     effective_permission_selection.profiles.as_ref(),
                     default_permissions,
@@ -2785,6 +2815,7 @@ impl Config {
                     &file_system_sandbox_policy,
                     network_sandbox_policy,
                 )
+                .with_hardware_permissions(hardware_permissions)
             };
             let materialized_file_system_sandbox_policy = file_system_sandbox_policy
                 .clone()
@@ -2794,7 +2825,8 @@ impl Config {
                     permission_profile.enforcement(),
                     &materialized_file_system_sandbox_policy,
                     network_sandbox_policy,
-                );
+                )
+                .with_hardware_permissions(permission_profile.hardware_permissions());
             let sandbox_policy = compatibility_sandbox_policy_for_permission_profile(
                 &materialized_permission_profile,
                 &materialized_file_system_sandbox_policy,
@@ -2808,7 +2840,8 @@ impl Config {
                     permission_profile.enforcement(),
                     &file_system_sandbox_policy,
                     network_sandbox_policy,
-                );
+                )
+                .with_hardware_permissions(permission_profile.hardware_permissions());
             }
             let active_permission_profile = if using_implicit_builtin_profile
                 && default_permissions == BUILT_IN_WORKSPACE_PROFILE
@@ -2888,7 +2921,8 @@ impl Config {
                     permission_profile.enforcement(),
                     &file_system_sandbox_policy,
                     network_sandbox_policy,
-                );
+                )
+                .with_hardware_permissions(permission_profile.hardware_permissions());
             }
             (
                 configured_network_proxy_config,
@@ -3334,11 +3368,17 @@ impl Config {
             effective_permission_profile.enforcement(),
             &effective_file_system_sandbox_policy,
             effective_network_sandbox_policy,
-        );
+        )
+        .with_hardware_permissions(effective_permission_profile.hardware_permissions());
         constrained_permission_profile
             .value
             .set(effective_permission_profile)
             .map_err(std::io::Error::from)?;
+        maybe_warn_unsupported_hardware_permissions(
+            constrained_permission_profile.value.get(),
+            &features,
+            &mut startup_warnings,
+        );
         let permission_profile_state = PermissionProfileState::from_constrained_active_profile(
             constrained_permission_profile.value,
             active_permission_profile,

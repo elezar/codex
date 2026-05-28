@@ -904,6 +904,7 @@ impl CoreShellCommandExecutor {
             SandboxablePreference::Auto,
             self.windows_sandbox_level,
             self.network.is_some(),
+            !permission_profile.hardware_permissions().is_empty(),
         );
         let command = SandboxCommand {
             program: program.clone().into(),
